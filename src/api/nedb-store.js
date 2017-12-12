@@ -1,34 +1,41 @@
 /* eslint-disable no-console */
-/* eslint-disable no-unused-vars */
 import nedb from 'nedb'
-import { head as _head, includes as _includes } from 'lodash'
 import chalk from 'chalk'
-
-const fs = require('fs-extra')
 
 const _dblog = (s) => {
 	if(process.env.NODE_ENV === 'test') return
 	console.log(chalk.gray('[db] ') + ' ' + chalk.gray(s))
 }
 
-import { v4 } from 'uuid'
-
 const EventEmitter = require('events')
 export class dbEmitter extends EventEmitter {}
 
 class DataStore {
 
-	constructor(path, model) {
+	constructor(type, model, path) {
 		this._EMITTER = new dbEmitter()
 		this._MODEL = model
+		this._TYPE = type
 		this._DB = new nedb({ filename: path, autoload: true })
 	}
 
 	db() {
-		return this._DB()
+		return this._DB
 	}
 
-	save({ document }) {
+	model() {
+		return this._MODEL()
+	}
+
+	on(eventName, listener) {
+		this._EMITTER.on(eventName, listener)
+	}
+
+	emit(eventName) {
+		this._EMITTER.emit(eventName, arguments)
+	}
+
+	save(document) {
 		return new Promise( (resolve, reject) => {
 			/* print action & data */
 			_dblog(`Executing ${chalk.bgWhite(' SAVE ')} action.`)
@@ -37,20 +44,21 @@ class DataStore {
 			let data = { ...document, ...this._MODEL }
 			let query = { _id: data._id }
 			let options = { upsert: true }
-			this._DB.update( query, data, options, (err, affectedDocuments) => {
+			this._DB.update( query, data, options, (err, n, docs) => {
 				if(err) {
 					_dblog(`${chalk.red('Error')} performing save action.`)
 					_dblog(`${err}`)
-					reject({ data })
+					reject(err, data)
 				} else {
 					_dblog(`Save action performed ${chalk.green('succesfully')}.`)
-					resolve({ response: affectedDocuments })
+					this._EMITTER.emit('saved', this._TYPE, docs)
+					resolve(docs)
 				}
 			})
 		})
 	}
 
-	update({ query, update, options }) {
+	update(query, update, options = {}) {
 		return new Promise( (resolve, reject) => {
 			/* print action & data */
 			_dblog(`Executing ${chalk.bgWhite(' UPDATE ')} action.`)
@@ -62,16 +70,17 @@ class DataStore {
 				if(err) {
 					_dblog(`${chalk.red('Error')} performing save action.`)
 					_dblog(`${err}`)
-					reject({ update })
+					reject(err, query, update, options)
 				} else {
 					_dblog(`Update action performed ${chalk.green('succesfully')}.`)
-					resolve({ response: affectedDocuments })
+					this._EMITTER.emit('updated', this._TYPE, affectedDocuments)
+					resolve(affectedDocuments)
 				}
 			})
 		})
 	}
 
-	get({ query }) {
+	get(query) {
 		return new Promise( (resolve, reject) => {
 			/* print action & data */
 			_dblog(`Executing ${chalk.bgWhite(' GET ')} action.`)
@@ -81,16 +90,17 @@ class DataStore {
 				if(err) {
 					_dblog(`${chalk.red('Error')} performing get action.`)
 					_dblog(`${err}`)
-					reject({ query })
+					reject(err, query)
 				} else {
 					_dblog(`Get action performed ${chalk.green('succesfully')}. ${doc.length} elements were returned.`)
-					resolve({ response: doc })
+					this._EMITTER.emit('got', this._TYPE, doc)
+					resolve(doc)
 				}
 			})
 		})
 	}
 
-	find({ query }) {
+	find(query) {
 		return new Promise( (resolve, reject) => {
 			/* print action & data */
 			_dblog(`Executing ${chalk.bgWhite(' FIND ')} action.`)
@@ -100,16 +110,17 @@ class DataStore {
 				if(err) {
 					_dblog(`${chalk.red('Error')} performing get action.`)
 					_dblog(`${err}`)
-					reject({ query })
+					reject(err, query)
 				} else {
-					_dblog(`Get action performed ${chalk.green('succesfully')}. ${docs.length} elements were returned.`)
-					resolve({ response: docs })
+					_dblog(`Find action performed ${chalk.green('succesfully')}. ${docs.length} elements were returned.`)
+					this._EMITTER.emit('found', this._TYPE, docs)
+					resolve(docs)
 				}
 			})
 		})
 	}
 
-	delete({ query, options }) {
+	delete(query, options = {}) {
 		return new Promise( (resolve, reject) => {
 			/* print action & data */
 			_dblog(`Executing ${chalk.bgWhite(' DELETE ')} action.`)
@@ -120,10 +131,11 @@ class DataStore {
 				if(err) {
 					_dblog(`${chalk.red('Error')} performing delete action.`)
 					_dblog(`${err}`)
-					reject({ query })
+					reject(err, query, options)
 				} else {
 					_dblog(`Delete action performed ${numRemoved} times ${chalk.green('succesfully')}.`)
-					resolve({ response: numRemoved })
+					this._EMITTER.emit('deleted', this._TYPE, numRemoved)
+					resolve(numRemoved)
 				}
 			})
 		})

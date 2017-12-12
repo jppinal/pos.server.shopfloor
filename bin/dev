@@ -1,2 +1,9 @@
+#!/usr/bin/env node
+console.log('----------------------------------')
+console.log('-------- DEVELOPMENT MODE --------')
+console.log('----------------------------------')
 require('babel-register')
+require('fs').unlinkSync('data/rooms')
+require('fs').unlinkSync('data/tables')
+require('fs').unlinkSync('data/orders')
 require('./../src/index')

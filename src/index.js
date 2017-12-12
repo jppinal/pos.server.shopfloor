@@ -1,14 +1,18 @@
 /* eslint-disable no-console */
 /* eslint-disable no-unused-vars */
-const configuration = require('../config/default.json')
-
-import app, { _applog } from './app'
-const PORT = configuration.port
-app.listen(PORT, () => _applog(`Listening on port ${PORT}`))
+import { ioport } from '../config/default.json'
 
 import io, { _iolog } from './io'
-const IOPORT = configuration.ioport
-io.listen(IOPORT)
-_iolog(`Websockets service listening on port ${IOPORT}`)
+io.listen(ioport)
+_iolog(`Websockets service listening on port ${ioport}`)
 
-export default app
+import stores from './api/stores'
+console.log('populating with test data')
+
+stores['rooms'].save({ name: 'interior' , label: 'Salón' }).then((room) => {
+	console.log(room)
+	stores['tables'].random(room._id, Math.random() * (10) + 5)
+})
+stores['rooms'].save({ name: 'exterior' , label: 'Terraza' }).then((room) => {
+	stores['tables'].random(room._id, Math.random() * (10) + 5)
+})
